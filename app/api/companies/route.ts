@@ -6,14 +6,29 @@ export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Diagnostic: log the env values actually seen at runtime (no secret values)
+  console.log('[/api/companies] AIRTABLE_BASE_ID =', process.env.AIRTABLE_BASE_ID ?? '⚠️ MISSING')
+  console.log('[/api/companies] AIRTABLE_TABLE_NAME =', process.env.AIRTABLE_TABLE_NAME ?? '⚠️ MISSING')
+  console.log('[/api/companies] AIRTABLE_API_KEY prefix =', process.env.AIRTABLE_API_KEY?.slice(0, 16) ?? '⚠️ MISSING')
+
   try {
     const companies = await getAllCompanies()
+    console.log('[/api/companies] fetched', companies.length, 'records')
     return NextResponse.json(companies)
-  } catch (err) {
-    console.error('[GET /api/companies]', err)
+  } catch (err: any) {
+    // Surface the real Airtable error — type, message, and status code
+    console.error('[/api/companies] Airtable error type   :', err?.error ?? err?.type ?? 'unknown')
+    console.error('[/api/companies] Airtable error message:', err?.message ?? String(err))
+    console.error('[/api/companies] Airtable status code  :', err?.statusCode ?? err?.status ?? 'unknown')
+    console.error('[/api/companies] Full error object     :', JSON.stringify(err, null, 2))
     return NextResponse.json(
-      { error: 'Failed to fetch companies', details: String(err) },
-      { status: 500 }
+      {
+        error: 'Failed to fetch companies',
+        airtableError: err?.error ?? err?.type ?? 'unknown',
+        details: err?.message ?? String(err),
+        statusCode: err?.statusCode ?? err?.status,
+      },
+      { status: 500 },
     )
   }
 }
