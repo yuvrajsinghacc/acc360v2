@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { getCompany, updateCompany, deleteCompany } from '@/lib/airtable'
+
+interface Params { params: { id: string } }
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    const company = await getCompany(params.id)
+    return NextResponse.json(company)
+  } catch (err) {
+    console.error('[GET /api/companies/:id]', err)
+    return NextResponse.json({ error: 'Company not found', details: String(err) }, { status: 404 })
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    const fields = await req.json()
+    const company = await updateCompany(params.id, fields)
+    return NextResponse.json(company)
+  } catch (err) {
+    console.error('[PATCH /api/companies/:id]', err)
+    return NextResponse.json({ error: 'Failed to update company', details: String(err) }, { status: 500 })
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    await deleteCompany(params.id)
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[DELETE /api/companies/:id]', err)
+    return NextResponse.json({ error: 'Failed to delete company', details: String(err) }, { status: 500 })
+  }
+}

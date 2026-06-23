@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <rect width="80" height="80" rx="8" fill="#374151"/>
+  <g transform="translate(16, 14)">
+    <!-- Building body -->
+    <rect x="4" y="18" width="40" height="30" rx="1" fill="#4B5563"/>
+    <!-- Roof triangle -->
+    <polygon points="24,4 0,20 48,20" fill="#4B5563"/>
+    <!-- Door -->
+    <rect x="19" y="32" width="10" height="16" rx="1" fill="#9CA3AF"/>
+    <!-- Windows row 1 -->
+    <rect x="7" y="22" width="7" height="6" rx="1" fill="#9CA3AF"/>
+    <rect x="34" y="22" width="7" height="6" rx="1" fill="#9CA3AF"/>
+    <!-- Windows row 2 -->
+    <rect x="7" y="32" width="7" height="6" rx="1" fill="#9CA3AF"/>
+    <rect x="34" y="32" width="7" height="6" rx="1" fill="#9CA3AF"/>
+  </g>
+</svg>

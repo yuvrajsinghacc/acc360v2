@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display&display=swap');
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+    background-color: #28282b;
+    color: #DFD5CC;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #28282b;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #64656A;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #7B7C81;
+  }
+}
+
+@layer components {
+  .cl-rootBox {
+    width: 100%;
+  }
+
+  .cl-card {
+    background: #3a3a3d !important;
+    border: 0.5px solid #64656A !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+  }
+
+  .cl-headerTitle,
+  .cl-headerSubtitle,
+  .cl-identityPreviewText,
+  .cl-formFieldLabel,
+  .cl-dividerText,
+  .cl-footerActionText {
+    color: #DFD5CC !important;
+  }
+
+  .cl-formButtonPrimary {
+    background: #FFA300 !important;
+    color: #28282b !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+  }
+
+  .cl-formButtonPrimary:hover {
+    background: #FFB621 !important;
+  }
+
+  .cl-formFieldInput {
+    background: #28282b !important;
+    border-color: #64656A !important;
+    color: #DFD5CC !important;
+  }
+
+  .cl-formFieldInput:focus {
+    border-color: #FFA300 !important;
+    box-shadow: none !important;
+  }
+
+  .cl-footerActionLink {
+    color: #FFA300 !important;
+  }
+
+  .cl-internal-b3fm6y {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .focus-ring {
+    @apply focus:outline-none focus:ring-1 focus:ring-[#FFA300];
+  }
+}

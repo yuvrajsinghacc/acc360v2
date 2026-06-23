@@ -1,0 +1,144 @@
+'use client'
+
+import Link from 'next/link'
+import { MapPin, User, DollarSign, Globe, GitCompare, ExternalLink, Flame } from 'lucide-react'
+import { cn, getCompanyName, getInitials, getAvatarColor, getPhaseStyle, formatRevenue, extractUrl } from '@/lib/utils'
+import { useApp } from '@/contexts/AppContext'
+import { Company } from '@/types'
+
+interface CompanyCardProps { company: Company }
+
+export function CompanyCard({ company }: CompanyCardProps) {
+  const { toggleCompare, isSelectedForCompare, compareIds } = useApp()
+  const selected    = isSelectedForCompare(company.id)
+  const canCompare  = compareIds.length < 3 || selected
+
+  const f    = company.fields
+  const name = getCompanyName(f)
+  const initials    = getInitials(name)
+  const avatarColor = getAvatarColor(name)
+
+  const phase    = f['Phase'] as string | undefined
+  const vertical = f['Vertical'] as string | undefined
+  const hq       = f['HQ'] as string | undefined
+  const contact  = f['Contact'] as string | undefined
+  const title    = f['Title'] as string | undefined
+  const revenue  = f['Revenue (MM)']
+  const websiteRaw = f['Website'] as string | undefined
+  const website    = extractUrl(websiteRaw)
+  const onHotList  = f['On Hot List'] as boolean | undefined
+
+  const domain = website
+    ? (() => { try { const u = website.startsWith('http') ? website : `https://${website}`; return new URL(u).hostname.replace(/^www\./, '') } catch { return null } })()
+    : null
+
+  return (
+    <div className={cn(
+      'group relative bg-card rounded-[10px] border transition-all duration-[2000ms] flex flex-col',
+      'hover:border-[#FFA300]/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
+      selected ? 'border-[#FFA300]/60' : onHotList ? 'border-orange-500/40' : 'border-border'
+    )}>
+      {onHotList && (
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-orange-500/15 text-orange-400 text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-orange-500/25 z-10">
+          <Flame size={10} />
+          Hot List
+        </div>
+      )}
+      <div className="p-3 sm:p-5 flex-1 flex flex-col">
+
+        {/* Header row */}
+        <div className="flex items-start gap-3 mb-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            loading="lazy"
+            src={domain ? `https://img.logo.dev/${domain}?token=${process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN}` : '/fallback-logo.svg'}
+            alt={`${name} logo`}
+            onError={(e) => {
+              e.currentTarget.onerror = null
+              e.currentTarget.src = '/fallback-logo.svg'
+            }}
+            className="shrink-0 w-12 h-12 rounded-lg object-contain bg-[#F5F2EF] p-1"
+          />
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-light text-sm leading-snug truncate">{name}</h3>
+            {vertical && (
+              <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-[#A7BDB1] text-[#28282b] truncate max-w-full">
+                {vertical}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Phase badge */}
+        {phase && (
+          <div className="mb-3">
+            <span className={cn(
+              'inline-flex items-center text-[11px] font-medium px-2.5 py-0.5 rounded-full border',
+              getPhaseStyle(phase)
+            )}>
+              {phase}
+            </span>
+          </div>
+        )}
+
+        {/* Key details */}
+        <div className="space-y-1.5 text-xs flex-1">
+          {hq && (
+            <div className="flex items-center gap-1.5 text-muted">
+              <MapPin size={11} className="shrink-0" />
+              <span className="truncate font-light">{hq}</span>
+            </div>
+          )}
+          {contact && (
+            <div className="flex items-center gap-1.5 text-muted">
+              <User size={11} className="shrink-0" />
+              <span className="truncate font-light">{contact}{title ? ` · ${title}` : ''}</span>
+            </div>
+          )}
+          {revenue !== undefined && revenue !== null && revenue !== '' && (
+            <div className="flex items-center gap-1.5 text-muted">
+              <DollarSign size={11} className="shrink-0" />
+              <span className="font-light">{formatRevenue(revenue)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-3 mt-3 border-t border-border">
+          <Link
+            href={`/companies/${company.id}`}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium bg-[#FFA300]/10 text-[#FFA300] hover:bg-[#FFA300]/20 active:scale-[0.97] transition-all duration-[1200ms]"
+          >
+            <Globe size={12} />
+            View
+          </Link>
+          {website && (
+            <a
+              href={website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-light hover:bg-navy active:scale-[0.97] transition-all duration-[1200ms]"
+            >
+              <ExternalLink size={12} />
+              Site
+            </a>
+          )}
+          <button
+            onClick={() => canCompare && toggleCompare(company.id)}
+            disabled={!canCompare}
+            className={cn(
+              'w-full sm:flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-[1200ms] active:scale-[0.97]',
+              selected
+                ? 'bg-[#FFA300]/15 text-[#FFA300] hover:bg-[#FFA300]/25'
+                : 'text-muted hover:text-light hover:bg-navy',
+              !canCompare && 'opacity-40 cursor-not-allowed'
+            )}
+          >
+            <GitCompare size={12} />
+            {selected ? 'Remove' : 'Compare'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
