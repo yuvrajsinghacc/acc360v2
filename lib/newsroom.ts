@@ -181,11 +181,24 @@ export async function getCompanyNews(input: NewsroomInput): Promise<NewsroomResu
     ],
   })
 
+  // ── Diagnostic logging ──────────────────────────────────────────────────────
+  // Log enough to tell whether web search actually ran.
+  const blockSummary = response.content.map((b) => b.type)
+  const searchUseBlocks  = response.content.filter((b) => b.type === 'tool_use').length
+  const searchResBlocks  = response.content.filter((b) => b.type === 'web_search_tool_result').length
+  console.log(`[newsroom:${name}] stop_reason=${response.stop_reason} blocks=${JSON.stringify(blockSummary)}`)
+  console.log(`[newsroom:${name}] tool_use_blocks=${searchUseBlocks} tool_result_blocks=${searchResBlocks}`)
+  // ── End diagnostic ──────────────────────────────────────────────────────────
+
   const raw = gatherText(response.content)
   const parsed = extractJson(raw)
 
+  console.log(`[newsroom:${name}] raw_text_len=${raw.length} raw_snippet=${raw.slice(0, 200).replace(/\n/g, ' ')}`)
+  console.log(`[newsroom:${name}] parse_ok=${parsed !== null} articles=${Array.isArray(parsed?.articles) ? parsed.articles.length : 'n/a'}`)
+
   // If the model returned no parseable JSON, fail honestly rather than fabricating.
   if (!parsed) {
+    console.warn(`[newsroom:${name}] no parseable JSON — stop_reason was "${response.stop_reason}". If stop_reason="tool_use" web search needs an agentic loop. If blocks has no tool_use entries, web search may not be enabled for this org.`)
     return {
       company: name,
       domain,
