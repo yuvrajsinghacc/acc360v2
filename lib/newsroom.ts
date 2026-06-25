@@ -163,42 +163,87 @@ export interface NewsroomInput {
   contact?: string
 }
 
-export async function getCompanyNews(input: NewsroomInput): Promise<NewsroomResult> {
+// TEMP DEBUG — remove after Vercel issue is diagnosed
+export interface NewsroomDebug {
+  company: string
+  elapsedMs?: number          // ms for the Anthropic messages.create() call
+  stopReason?: string
+  blockTypes?: string[]
+  toolUseBlocks?: number
+  searchResultBlocks?: number
+  rawTextLen?: number
+  rawSnippet?: string
+  parseOk?: boolean
+  articleCount?: number
+  thrownError?: string        // set when messages.create() throws (includes HTTP status + body)
+}
+
+export async function getCompanyNews(
+  input: NewsroomInput,
+  debug?: NewsroomDebug,
+): Promise<NewsroomResult> {
   const { name, domain } = input
   const generatedAt = new Date().toISOString()
 
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 3000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: buildUserPrompt(input) }],
-    tools: [
-      {
-        type: 'web_search_20250305',
-        name: 'web_search',
-        max_uses: 6,
-      } as any, // cast: web search tool type may precede SDK typings
-    ],
-  })
+  // TEMP DEBUG: time the Anthropic call; capture SDK error details if it throws.
+  const t0 = Date.now()
+  let response: Awaited<ReturnType<typeof anthropic.messages.create>>
+  try {
+    response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 3000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: buildUserPrompt(input) }],
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 6,
+        } as any,
+      ],
+    })
+  } catch (err: any) {
+    if (debug) {
+      debug.elapsedMs   = Date.now() - t0
+      // Anthropic SDK errors expose .status (HTTP code) and .error (parsed body)
+      const httpStatus  = err?.status  != null ? ` [HTTP ${err.status}]` : ''
+      const errBody     = err?.error   != null ? ` body=${JSON.stringify(err.error)}` : ''
+      debug.thrownError = `${err?.name ?? 'Error'}: ${err?.message ?? String(err)}${httpStatus}${errBody}`
+    }
+    throw err
+  }
 
-  // ── Diagnostic logging ──────────────────────────────────────────────────────
-  // Log enough to tell whether web search actually ran.
-  const blockSummary = response.content.map((b) => b.type)
-  const searchUseBlocks  = response.content.filter((b) => b.type === 'tool_use').length
-  const searchResBlocks  = response.content.filter((b) => b.type === 'web_search_tool_result').length
-  console.log(`[newsroom:${name}] stop_reason=${response.stop_reason} blocks=${JSON.stringify(blockSummary)}`)
-  console.log(`[newsroom:${name}] tool_use_blocks=${searchUseBlocks} tool_result_blocks=${searchResBlocks}`)
+  // ── Diagnostic (TEMP) ───────────────────────────────────────────────────────
+  const elapsed         = Date.now() - t0
+  const blockSummary    = response.content.map((b) => b.type)
+  const searchUseBlocks = response.content.filter((b) => b.type === 'tool_use').length
+  const searchResBlocks = response.content.filter((b) => b.type === 'web_search_tool_result').length
+  console.log(`[newsroom:${name}] elapsed=${elapsed}ms stop_reason=${response.stop_reason} blocks=${JSON.stringify(blockSummary)}`)
+  console.log(`[newsroom:${name}] tool_use=${searchUseBlocks} search_results=${searchResBlocks}`)
   // ── End diagnostic ──────────────────────────────────────────────────────────
 
-  const raw = gatherText(response.content)
+  const raw    = gatherText(response.content)
   const parsed = extractJson(raw)
 
-  console.log(`[newsroom:${name}] raw_text_len=${raw.length} raw_snippet=${raw.slice(0, 200).replace(/\n/g, ' ')}`)
+  console.log(`[newsroom:${name}] raw_len=${raw.length} snippet=${raw.slice(0, 200).replace(/\n/g, ' ')}`)
   console.log(`[newsroom:${name}] parse_ok=${parsed !== null} articles=${Array.isArray(parsed?.articles) ? parsed.articles.length : 'n/a'}`)
+
+  // Populate caller-supplied debug object so the HTTP response can surface it.
+  if (debug) {
+    debug.elapsedMs          = elapsed
+    debug.stopReason         = String(response.stop_reason)
+    debug.blockTypes         = blockSummary
+    debug.toolUseBlocks      = searchUseBlocks
+    debug.searchResultBlocks = searchResBlocks
+    debug.rawTextLen         = raw.length
+    debug.rawSnippet         = raw.slice(0, 300).replace(/\n/g, ' ')
+    debug.parseOk            = parsed !== null
+    debug.articleCount       = Array.isArray(parsed?.articles) ? parsed.articles.length : 0
+  }
 
   // If the model returned no parseable JSON, fail honestly rather than fabricating.
   if (!parsed) {
-    console.warn(`[newsroom:${name}] no parseable JSON — stop_reason was "${response.stop_reason}". If stop_reason="tool_use" web search needs an agentic loop. If blocks has no tool_use entries, web search may not be enabled for this org.`)
+    console.warn(`[newsroom:${name}] no parseable JSON — stop_reason="${response.stop_reason}"`)
     return {
       company: name,
       domain,

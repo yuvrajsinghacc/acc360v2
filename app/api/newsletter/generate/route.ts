@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllCompanies } from '@/lib/airtable'
 import { getCompanyNews } from '@/lib/newsroom'
+import type { NewsroomDebug } from '@/lib/newsroom'
 import { saveNewsletter } from '@/lib/kv'
 import { getCompanyName, extractUrl } from '@/lib/utils'
 import type { Newsletter, NewsletterCompanySection } from '@/types/newsletter'
@@ -33,6 +34,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[newsletter/generate] ANTHROPIC_API_KEY is not set')
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY is not configured' }, { status: 500 })
+  }
+
   const today = new Date().toISOString().slice(0, 10)
 
   try {
@@ -42,6 +48,9 @@ export async function GET(req: NextRequest) {
     if (hotList.length === 0) {
       return NextResponse.json({ error: 'No Hot List companies found' }, { status: 404 })
     }
+
+    // TEMP DEBUG: collect per-company debug info to surface in the response body.
+    const debugEntries: (NewsroomDebug & { rejected?: string })[] = []
 
     // Run all companies in parallel. Promise.allSettled isolates failures per company.
     const settled = await Promise.allSettled(
@@ -54,14 +63,38 @@ export async function GET(req: NextRequest) {
         const hq       = ((f['HQ'] ?? f['HQ (verified)']) as string | undefined) ?? undefined
         const contact  = (f['Contact'] as string | undefined) ?? undefined
 
-        const result = await getCompanyNews({ name, domain, vertical, hq, contact })
-        return { companyId: company.id, companyName: name, domain, result }
+        const t0  = Date.now()
+        const dbg: NewsroomDebug = { company: name }
+        try {
+          const result = await getCompanyNews({ name, domain, vertical, hq, contact }, dbg)
+          // elapsedMs set inside getCompanyNews; fallback in case it wasn't reached
+          if (dbg.elapsedMs == null) dbg.elapsedMs = Date.now() - t0
+          debugEntries.push(dbg)
+          return { companyId: company.id, companyName: name, domain, result }
+        } catch (err: any) {
+          if (dbg.elapsedMs == null) dbg.elapsedMs = Date.now() - t0
+          // Only set thrownError here if getCompanyNews didn't already populate it
+          // (getCompanyNews sets it for Anthropic SDK errors with HTTP status + body)
+          if (!dbg.thrownError) {
+            const httpStatus = err?.status != null ? ` [HTTP ${err.status}]` : ''
+            const errBody    = err?.error  != null ? ` body=${JSON.stringify(err.error)}` : ''
+            dbg.thrownError  = `${err?.name ?? 'Error'}: ${err?.message ?? String(err)}${httpStatus}${errBody}`
+          }
+          console.error(`[newsletter/generate] company="${name}" failed: ${dbg.thrownError}`)
+          debugEntries.push(dbg)
+          throw err
+        }
       }),
     )
 
-    const sections: NewsletterCompanySection[] = settled
-      .filter((r): r is PromiseFulfilledResult<NewsletterCompanySection> => r.status === 'fulfilled')
-      .map((r) => r.value)
+    const sections: NewsletterCompanySection[] = []
+    for (const r of settled) {
+      if (r.status === 'fulfilled') {
+        sections.push(r.value)
+      } else {
+        // rejection already captured in debugEntries via the catch above
+      }
+    }
 
     const newsletter: Newsletter = {
       date: today,
@@ -79,6 +112,8 @@ export async function GET(req: NextRequest) {
       companiesAttempted: newsletter.companiesAttempted,
       companiesSucceeded: newsletter.companiesSucceeded,
       saved,
+      // TEMP DEBUG — remove once Vercel issue is diagnosed
+      debug: debugEntries,
     })
   } catch (err) {
     console.error('[newsletter/generate]', err)
