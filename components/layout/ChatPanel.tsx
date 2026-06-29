@@ -158,7 +158,7 @@ export function ChatPanel() {
                 <Bot size={24} className="text-[#FFA300]" />
               </div>
               <div>
-                <p className="text-sm font-medium text-light">Hey there, I'm MOAA!</p>
+                <p className="text-sm font-medium text-light">Hey there, I&apos;m MOAA!</p>
                 <p className="text-xs font-light text-muted mt-1 leading-relaxed">
                   {companiesReady
                     ? `${allCompanies.length} companies loaded. You can ask me just about anything, For example, try: "Which company has the highest revenue?".`
