@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { AccLogo } from '@/components/ui/AccLogo'
 import { useRouter } from 'next/navigation'
 import { Building2, Plus, GitCompare, Send, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -95,8 +96,8 @@ export default function HomePage() {
       {!asked ? (
         /* ── Hero state ── */
         <div className="w-full max-w-2xl text-center">
-          <div className="inline-flex items-center justify-center w-100 h-25 rounded-[10px] overflow-hidden mb-1">
-            <Image src="/Logo.png" alt="MOAA Logo" width={480} height={100} className="object-contain" />
+          <div className="flex justify-center mb-4">
+            <AccLogo className="w-full max-w-[500px]" />
           </div>
 
           <p className="font-light text-muted mb-8 sm:mb-10 text-base sm:text-lg">
@@ -170,7 +171,7 @@ export default function HomePage() {
           {/* Compact header */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
-              <Image src="/Logo.png" alt="MOAA Logo" width={32} height={32} className="object-contain" />
+              <Image src="/acc360-logo.svg" alt="MOAA Logo" width={32} height={32} className="object-contain" />
             </div>
             <h1 className="font-serif text-xl font-medium text-light tracking-[0.02em]">ACC Intelligence</h1>
             <Button

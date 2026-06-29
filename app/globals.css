@@ -99,3 +99,22 @@
     @apply focus:outline-none focus:ring-1 focus:ring-[#FFA300];
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ring-cw {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes ring-ccw {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+  }
+
+  #ring-outer     { transform-box: fill-box; transform-origin: center; animation: ring-cw  40s linear infinite; }
+  #ring-2         { transform-box: fill-box; transform-origin: center; animation: ring-ccw 60s linear infinite; }
+  #ring-3         { transform-box: fill-box; transform-origin: center; animation: ring-cw  35s linear infinite; }
+  #ring-4         { transform-box: fill-box; transform-origin: center; animation: ring-ccw 55s linear infinite; }
+  #ring-gold      { transform-box: fill-box; transform-origin: center; animation: ring-cw  25s linear infinite; }
+  #ring-inner     { transform-box: fill-box; transform-origin: center; animation: ring-ccw 45s linear infinite; }
+  #ring-innermost { transform-box: fill-box; transform-origin: center; animation: ring-cw  70s linear infinite; }
+}
