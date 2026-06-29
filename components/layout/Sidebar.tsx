@@ -1,14 +1,13 @@
 'use client'
 
 import { Suspense } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
   Home, Building2, BarChart3, Plus,
   ChevronLeft, ChevronRight, Flame, Newspaper,
 } from 'lucide-react'
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, useUser } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/contexts/AppContext'
 
@@ -93,6 +92,13 @@ function NavItems({ sidebarOpen }: { sidebarOpen: boolean }) {
 
 export function Sidebar() {
   const { sidebarOpen, toggleSidebar } = useApp()
+  const { user } = useUser()
+
+  const displayName =
+    user?.fullName ||
+    user?.firstName ||
+    user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+    'User'
 
   return (
     <>
@@ -104,24 +110,17 @@ export function Sidebar() {
         'fixed top-0 left-0 h-full bg-sidebar flex flex-col z-30 transition-all duration-[2000ms] ease-in-out border-r border-border',
         sidebarOpen ? 'w-64' : 'w-16',
       )}>
-        {/* Logo / brand */}
+        {/* Brand wordmark */}
         <div className="flex items-center h-16 px-3 border-b border-border shrink-0">
-          {/* Render logo directly on sidebar bg — mix-blend-mode:screen makes any
-              baked-in light background disappear against the dark sidebar. */}
-          <Image
-            src="/MOAA.png"
-            alt="ACC360"
-            width={36}
-            height={36}
-            className="shrink-0 object-contain"
-            style={{ mixBlendMode: 'screen' }}
-          />
-          {sidebarOpen && (
-            <div className="ml-3 overflow-hidden">
-              <p className="font-serif text-sm font-medium text-light leading-none tracking-[0.02em]">
-                ACC360
+          {sidebarOpen ? (
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <p className="font-serif text-[#FFA300] text-base leading-none tracking-wide">ACC</p>
+              <p className="font-serif text-[#A7BDB1] text-[11px] leading-none tracking-[0.08em] mt-1 opacity-80">
+                Intelligence Hub
               </p>
             </div>
+          ) : (
+            <span className="font-serif text-[#FFA300] text-lg leading-none shrink-0">A</span>
           )}
           <button
             onClick={toggleSidebar}
@@ -142,7 +141,7 @@ export function Sidebar() {
           sidebarOpen ? 'gap-3' : 'justify-center',
         )}>
           <UserButton afterSignOutUrl="/sign-in" />
-          {sidebarOpen && <p className="text-xs font-light text-muted truncate">ACC Team</p>}
+          {sidebarOpen && <p className="text-xs font-light text-muted truncate">{displayName}</p>}
         </div>
       </aside>
     </>

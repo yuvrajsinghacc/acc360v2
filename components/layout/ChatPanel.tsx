@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { MessageSquare, X, Send, Bot, User, Loader2 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import { MarkdownContent } from '@/components/ui/MarkdownContent'
 import { cn, generateId } from '@/lib/utils'
 import { useApp } from '@/contexts/AppContext'
+import { useStatusMessages } from '@/lib/hooks/useStatusMessages'
 import { ChatMessage } from '@/types'
 
 export function ChatPanel() {
@@ -12,17 +13,19 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [streamContent, setStreamContent] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+  const statusActive = loading && !streamContent
+  const statusMessage = useStatusMessages(statusActive)
 
   useEffect(() => {
-    if (chatOpen) {
-      setTimeout(() => inputRef.current?.focus(), 150)
-    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamContent, loading])
+
+  useEffect(() => {
+    if (chatOpen) setTimeout(() => inputRef.current?.focus(), 150)
   }, [chatOpen])
 
   async function sendMessage() {
@@ -35,10 +38,10 @@ export function ChatPanel() {
       content: text,
       timestamp: new Date(),
     }
-
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setLoading(true)
+    setStreamContent('')
 
     try {
       const res = await fetch('/api/chat', {
@@ -47,28 +50,38 @@ export function ChatPanel() {
         body: JSON.stringify({ message: text }),
       })
 
-      const data = await res.json()
-
-      const assistantMsg: ChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: res.ok
-          ? data.answer
-          : data.error ?? 'Something went wrong. Please try again.',
-        timestamp: new Date(),
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as any).error ?? `Request failed (${res.status})`)
       }
 
-      setMessages((prev) => [...prev, assistantMsg])
-    } catch {
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setStreamContent(accumulated)
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: generateId(), role: 'assistant', content: accumulated, timestamp: new Date() },
+      ])
+      setStreamContent('')
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
           id: generateId(),
           role: 'assistant',
-          content: 'Connection error. Please check your network and try again.',
+          content: err.message || 'Connection error. Please check your network and try again.',
           timestamp: new Date(),
         },
       ])
+      setStreamContent('')
     } finally {
       setLoading(false)
     }
@@ -85,10 +98,7 @@ export function ChatPanel() {
     <>
       {/* Mobile backdrop */}
       {chatOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 sm:hidden"
-          onClick={toggleChat}
-        />
+        <div className="fixed inset-0 bg-black/50 z-30 sm:hidden" onClick={toggleChat} />
       )}
 
       {/* Floating trigger button */}
@@ -110,9 +120,7 @@ export function ChatPanel() {
           'fixed z-40 flex flex-col',
           'bg-sidebar border border-border overflow-hidden',
           'transition-all duration-[800ms]',
-          // Mobile: full-width bottom sheet
           'bottom-0 left-0 right-0 rounded-t-2xl rounded-b-none h-[80vh]',
-          // Desktop: floating card
           'sm:bottom-6 sm:left-auto sm:right-6 sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-100px)] sm:rounded-[10px]',
           chatOpen
             ? 'opacity-100 pointer-events-auto translate-y-0 sm:scale-100'
@@ -144,7 +152,7 @@ export function ChatPanel() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && (
+          {messages.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-8">
               <div className="w-12 h-12 rounded-[10px] bg-[#FFA300]/10 flex items-center justify-center">
                 <Bot size={24} className="text-[#FFA300]" />
@@ -160,21 +168,16 @@ export function ChatPanel() {
             </div>
           )}
 
+          {/* Completed messages */}
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={cn(
-                'flex gap-2.5',
-                msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-              )}
+              className={cn('flex gap-2.5', msg.role === 'user' ? 'flex-row-reverse' : 'flex-row')}
             >
-              {/* Avatar */}
               <div
                 className={cn(
                   'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5',
-                  msg.role === 'user'
-                    ? 'bg-[#FFA300]/20'
-                    : 'bg-[#A7BDB1]/20'
+                  msg.role === 'user' ? 'bg-[#FFA300]/20' : 'bg-[#A7BDB1]/20'
                 )}
               >
                 {msg.role === 'user' ? (
@@ -183,8 +186,6 @@ export function ChatPanel() {
                   <Bot size={13} className="text-[#A7BDB1]" />
                 )}
               </div>
-
-              {/* Bubble */}
               <div
                 className={cn(
                   'max-w-[80%] rounded-[10px] px-3 py-2 text-sm leading-relaxed',
@@ -194,15 +195,7 @@ export function ChatPanel() {
                 )}
               >
                 {msg.role === 'assistant' ? (
-                  <ReactMarkdown
-                    className="prose prose-invert prose-sm max-w-none
-                      prose-p:leading-relaxed prose-p:my-1
-                      prose-ul:my-1 prose-li:my-0
-                      prose-strong:text-[#FFA300] prose-strong:font-medium
-                      prose-code:text-[#FECD42] prose-code:bg-[#28282b] prose-code:px-1 prose-code:rounded"
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                  <MarkdownContent>{msg.content}</MarkdownContent>
                 ) : (
                   msg.content
                 )}
@@ -210,14 +203,24 @@ export function ChatPanel() {
             </div>
           ))}
 
-          {/* Typing indicator */}
+          {/* In-progress streaming bubble */}
           {loading && (
             <div className="flex gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-[#A7BDB1]/20 flex items-center justify-center mt-0.5 shrink-0">
+              <div className="shrink-0 w-7 h-7 rounded-lg bg-[#A7BDB1]/20 flex items-center justify-center mt-0.5">
                 <Bot size={13} className="text-[#A7BDB1]" />
               </div>
-              <div className="bg-card rounded-[10px] rounded-tl-sm px-3 py-2">
-                <Loader2 size={14} className="text-muted animate-spin" />
+              <div className="max-w-[80%] rounded-[10px] rounded-tl-sm px-3 py-2 bg-card text-light relative">
+                {streamContent ? (
+                  <>
+                    <MarkdownContent>{streamContent}</MarkdownContent>
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#FFA300] animate-pulse" />
+                  </>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-muted py-0.5">
+                    <Loader2 size={12} className="animate-spin shrink-0" />
+                    <span className="text-xs">{statusMessage}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

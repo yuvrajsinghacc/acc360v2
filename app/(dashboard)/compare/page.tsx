@@ -3,12 +3,64 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { GitCompare, X, Search, ExternalLink } from 'lucide-react'
-import { Company } from '@/types'
-import { getCompanyName, formatFieldValue, getInitials, getAvatarColor } from '@/lib/utils'
+import { GitCompare, X, Search, ExternalLink, Sparkles, Loader2 } from 'lucide-react'
+import { Company, AirtableFieldValue } from '@/types'
+import { getCompanyName, formatFieldValue, formatRevenue, getInitials, getAvatarColor } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
+import { MarkdownContent } from '@/components/ui/MarkdownContent'
 import { useApp } from '@/contexts/AppContext'
+import { useStatusMessages } from '@/lib/hooks/useStatusMessages'
+
+// ─── Fixed row order for the comparison table ─────────────────────────────────
+
+type Fields = Record<string, AirtableFieldValue>
+
+type CompareRow =
+  | { label: string; kind: 'field';   getValue: (f: Fields) => string; isWebsite?: boolean }
+  | { label: string; kind: 'contact' }
+
+const COMPARE_ROWS: CompareRow[] = [
+  { label: 'Vertical',        kind: 'field', getValue: (f) => formatFieldValue(f['Vertical']) },
+  { label: 'LTM Revenue',     kind: 'field', getValue: (f) => formatRevenue(f["LTM Revenue '25"]) },
+  { label: 'EBITDA',          kind: 'field', getValue: (f) => formatRevenue(f["EBITDA '25"]) },
+  { label: 'Phase',           kind: 'field', getValue: (f) => formatFieldValue(f['Phase']) },
+  { label: 'Office Location', kind: 'field', getValue: (f) => formatFieldValue(f['HQ'] ?? f['HQ (verified)']) },
+  { label: 'Notes',           kind: 'field', getValue: (f) => formatFieldValue(f['Notes']) },
+  { label: 'Contact',         kind: 'contact' },
+  { label: 'Website',         kind: 'field', getValue: (f) => formatFieldValue(f['Website']), isWebsite: true },
+]
+
+// ─── Contact cell — combines name, title, email ───────────────────────────────
+
+function ContactCell({ fields }: { fields: Fields }) {
+  const name  = formatFieldValue(fields['Contact'])
+  const title = formatFieldValue(fields['Title'])
+  const email = formatFieldValue(fields['Email'])
+
+  const hasName  = name  !== '—'
+  const hasTitle = title !== '—'
+  const hasEmail = email !== '—'
+
+  if (!hasName && !hasTitle && !hasEmail) {
+    return <span className="text-sm text-muted italic">—</span>
+  }
+
+  const subtitleParts = [hasTitle && title, hasEmail && email].filter(Boolean) as string[]
+
+  return (
+    <div className="space-y-0.5">
+      {hasName && <p className="text-sm text-light">{name}</p>}
+      {subtitleParts.length > 0 && (
+        <p className={hasName ? 'text-xs text-muted' : 'text-sm text-light'}>
+          {subtitleParts.join(' · ')}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
   const searchParams = useSearchParams()
@@ -23,6 +75,14 @@ export default function ComparePage() {
   const [query, setQuery] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+
+  // AI evaluation state
+  const [evalState, setEvalState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [evalText, setEvalText] = useState('')
+  const [evalError, setEvalError] = useState('')
+
+  const statusActive = evalState === 'loading' && !evalText
+  const statusMessage = useStatusMessages(statusActive)
 
   useEffect(() => {
     fetch('/api/companies')
@@ -43,6 +103,14 @@ export default function ComparePage() {
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
 
+  // Reset evaluation when the set of compared companies changes
+  const idsKey = idsToShow.join(',')
+  useEffect(() => {
+    setEvalState('idle')
+    setEvalText('')
+    setEvalError('')
+  }, [idsKey])
+
   const selected = useMemo(
     () => allCompanies.filter((c) => idsToShow.includes(c.id)),
     [allCompanies, idsToShow]
@@ -56,18 +124,70 @@ export default function ComparePage() {
       .slice(0, 8)
   }, [allCompanies, idsToShow, query])
 
-  const allFields = useMemo(() => {
-    const seen = new Set<string>()
-    selected.forEach((c) => Object.keys(c.fields).forEach((k) => seen.add(k)))
-    return Array.from(seen)
-  }, [selected])
-
   const atMax = idsToShow.length >= 3
 
   function pick(id: string) {
     toggleCompare(id)
     setQuery('')
     setDropdownOpen(false)
+  }
+
+  async function runEvaluation() {
+    setEvalState('loading')
+    setEvalText('')
+    setEvalError('')
+
+    const companyBlocks = selected.map((c) => {
+      const f = c.fields
+      return [
+        `Company: ${getCompanyName(f)}`,
+        `Vertical: ${formatFieldValue(f['Vertical'])}`,
+        `LTM Revenue: ${formatRevenue(f["LTM Revenue '25"])}`,
+        `EBITDA: ${formatRevenue(f["EBITDA '25"])}`,
+        `Phase: ${formatFieldValue(f['Phase'])}`,
+        `HQ: ${formatFieldValue(f['HQ'] ?? f['HQ (verified)'])}`,
+        `Notes: ${formatFieldValue(f['Notes'])}`,
+      ].join('\n')
+    }).join('\n\n---\n\n')
+
+    const companyNames = selected.map((c) => getCompanyName(c.fields)).join(', ')
+    const message = [
+      `Act as a senior M&A analyst at an agency-acquisition firm evaluating ${selected.length} agencies as acquisition targets: ${companyNames}.`,
+      ``,
+      `Comparison data:`,
+      ``,
+      companyBlocks,
+      ``,
+      `Provide a concise, skimmable evaluation. Compare across revenue, EBITDA, deal phase, and strategic fit. Give a clear recommendation on which is the stronger acquisition target and why. Use short paragraphs or a brief bulleted structure — keep it tight.`,
+    ].join('\n')
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as any).error ?? `Request failed (${res.status})`)
+      }
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setEvalText(accumulated)
+      }
+
+      setEvalState('done')
+    } catch (err: any) {
+      setEvalError(err.message || 'Something went wrong. Please try again.')
+      setEvalState('error')
+    }
   }
 
   if (loading) return <PageLoader message="Loading…" />
@@ -97,7 +217,6 @@ export default function ComparePage() {
 
       {/* Search + selected pills */}
       <div className="space-y-3">
-        {/* Search bar */}
         {!atMax && (
           <div ref={searchRef} className="relative max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -130,7 +249,6 @@ export default function ComparePage() {
           </div>
         )}
 
-        {/* Selected company pills */}
         {selected.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {selected.map((c) => {
@@ -166,68 +284,152 @@ export default function ComparePage() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[600px]">
-            <thead>
-              <tr className="border-b border-border bg-[#111827]">
-                <th className="text-left px-5 py-4 text-xs font-semibold text-muted uppercase tracking-wider w-44 sticky left-0 bg-[#111827]">
-                  Field
-                </th>
-                {selected.map((company) => {
-                  const name = getCompanyName(company.fields)
-                  return (
-                    <th key={company.id} className="px-5 py-4 text-left">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${getAvatarColor(name)}`}>
-                          {getInitials(name)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-light truncate max-w-[140px]">{name}</p>
-                          <Link href={`/companies/${company.id}`} className="inline-flex items-center gap-0.5 text-xs text-muted hover:text-accent-orange">
-                            View <ExternalLink size={10} />
-                          </Link>
-                        </div>
-                        <button
-                          onClick={() => toggleCompare(company.id)}
-                          className="ml-auto text-muted hover:text-light shrink-0"
-                          aria-label="Remove from comparison"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </th>
-                  )
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {allFields.map((field, i) => (
-                <tr key={field} className={`border-b border-border/50 ${i % 2 === 0 ? 'bg-card/30' : 'bg-transparent'}`}>
-                  <td className="px-5 py-3.5 sticky left-0 bg-inherit">
-                    <span className="text-xs font-medium text-muted">{field}</span>
-                  </td>
+        <>
+          {/* Comparison table */}
+          <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr className="border-b border-border bg-[#111827]">
+                  <th className="text-left px-5 py-4 text-xs font-semibold text-muted uppercase tracking-wider w-44 sticky left-0 bg-[#111827]">
+                    Field
+                  </th>
                   {selected.map((company) => {
-                    const value = company.fields[field]
-                    const display = formatFieldValue(value)
-                    const isUrl = typeof value === 'string' && value.match(/^https?:\/\//i)
-                    const isEmpty = display === '—'
+                    const name = getCompanyName(company.fields)
                     return (
-                      <td key={company.id} className="px-5 py-3.5">
-                        {isUrl ? (
-                          <a href={display} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-accent-orange hover:underline">
-                            Link <ExternalLink size={10} />
-                          </a>
-                        ) : (
-                          <span className={`text-sm ${isEmpty ? 'text-muted italic' : 'text-light'}`}>{display}</span>
-                        )}
-                      </td>
+                      <th key={company.id} className="px-5 py-4 text-left">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${getAvatarColor(name)}`}>
+                            {getInitials(name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-light truncate max-w-[140px]">{name}</p>
+                            <Link href={`/companies/${company.id}`} className="inline-flex items-center gap-0.5 text-xs text-muted hover:text-accent-orange">
+                              View <ExternalLink size={10} />
+                            </Link>
+                          </div>
+                          <button
+                            onClick={() => toggleCompare(company.id)}
+                            className="ml-auto text-muted hover:text-light shrink-0"
+                            aria-label="Remove from comparison"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </th>
                     )
                   })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {COMPARE_ROWS.map((row, i) => (
+                  <tr key={row.label} className={`border-b border-border/50 ${i % 2 === 0 ? 'bg-card/30' : 'bg-transparent'}`}>
+                    <td className="px-5 py-3.5 sticky left-0 bg-inherit">
+                      <span className="text-xs font-medium text-muted">{row.label}</span>
+                    </td>
+                    {selected.map((company) => {
+                      if (row.kind === 'contact') {
+                        return (
+                          <td key={company.id} className="px-5 py-3.5">
+                            <ContactCell fields={company.fields} />
+                          </td>
+                        )
+                      }
+
+                      const display = row.getValue(company.fields)
+                      const isEmpty = display === '—'
+
+                      if (row.isWebsite && !isEmpty) {
+                        const href = display.match(/^https?:\/\//i) ? display : `https://${display}`
+                        return (
+                          <td key={company.id} className="px-5 py-3.5">
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-accent-orange hover:underline">
+                              Link <ExternalLink size={10} />
+                            </a>
+                          </td>
+                        )
+                      }
+
+                      return (
+                        <td key={company.id} className="px-5 py-3.5">
+                          <span className={`text-sm ${isEmpty ? 'text-muted italic' : 'text-light'}`}>{display}</span>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* AI Evaluation */}
+          {selected.length >= 2 && (
+            <div className="space-y-4">
+              <Button
+                variant="primary"
+                size="md"
+                loading={evalState === 'loading'}
+                icon={evalState !== 'loading' ? <Sparkles size={14} /> : undefined}
+                onClick={runEvaluation}
+                disabled={evalState === 'loading'}
+              >
+                Have AI Evaluate This Comparison?
+              </Button>
+
+              {/* Loading: status messages → then streaming content */}
+              {evalState === 'loading' && (
+                <div className="rounded-2xl border border-border bg-card/20 px-6 py-5 relative">
+                  {evalText ? (
+                    <>
+                      <div className="flex items-center gap-2 border-b border-border/50 pb-3 mb-3">
+                        <Sparkles size={13} className="text-accent-orange/60 animate-pulse shrink-0" />
+                        <span className="text-xs font-semibold text-accent-orange/60 uppercase tracking-wider">AI M&amp;A Evaluation</span>
+                      </div>
+                      <MarkdownContent>{evalText}</MarkdownContent>
+                      <span className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full bg-[#FFA300] animate-pulse" />
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-muted text-sm">
+                      <Loader2 size={13} className="animate-spin shrink-0" />
+                      <span>{statusMessage}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Done */}
+              {evalState === 'done' && (
+                <div className="rounded-2xl border border-border bg-card/20 px-6 py-5 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-2 border-b border-border/50 pb-3">
+                    <Sparkles size={13} className="text-accent-orange shrink-0" />
+                    <span className="text-xs font-semibold text-accent-orange uppercase tracking-wider">AI M&amp;A Evaluation</span>
+                    <button
+                      onClick={() => setEvalState('idle')}
+                      className="ml-auto text-muted hover:text-light transition-colors"
+                      aria-label="Dismiss"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <MarkdownContent>{evalText}</MarkdownContent>
+                </div>
+              )}
+
+              {/* Error */}
+              {evalState === 'error' && (
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-5 py-4 flex items-start gap-3">
+                  <span className="text-red-400 text-sm flex-1">{evalError}</span>
+                  <button
+                    onClick={() => setEvalState('idle')}
+                    className="text-red-400/60 hover:text-red-400 transition-colors shrink-0"
+                    aria-label="Dismiss"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

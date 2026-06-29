@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getAllCompanies } from '@/lib/airtable'
-import { askClaude } from '@/lib/claude'
+import { streamClaude } from '@/lib/claude'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth()
@@ -13,18 +15,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    const airtableRecords = await getAllCompanies()
-
-    if (!airtableRecords || airtableRecords.length === 0) {
-      return NextResponse.json({
-        answer: 'No company data is available in the database. Please check your Airtable connection.',
-      })
+    const companies = await getAllCompanies()
+    if (!companies?.length) {
+      return NextResponse.json({ error: 'No company data available' }, { status: 503 })
     }
 
-    console.log('[/api/chat] airtableRecords count:', airtableRecords.length)
+    const stream = streamClaude(message, companies)
 
-    const answer = await askClaude(message, airtableRecords)
-    return NextResponse.json({ answer })
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    })
   } catch (err) {
     console.error('[POST /api/chat]', err)
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 })

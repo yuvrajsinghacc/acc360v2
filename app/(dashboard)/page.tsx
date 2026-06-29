@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Building2, Plus, GitCompare, Send, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { MarkdownContent } from '@/components/ui/MarkdownContent'
 import { generateId } from '@/lib/utils'
+import { useStatusMessages } from '@/lib/hooks/useStatusMessages'
 import { ChatMessage } from '@/types'
-import ReactMarkdown from 'react-markdown'
 
 const QUICK_QUESTIONS = [
   'Which companies are in the tech sector?',
@@ -23,12 +24,18 @@ export default function HomePage() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
+  const [streamContent, setStreamContent] = useState('')
   const [asked, setAsked] = useState(false)
+
+  // Show rotating status while waiting for first text token
+  const statusActive = loading && !streamContent
+  const statusMessage = useStatusMessages(statusActive)
 
   async function ask(question: string) {
     if (!question.trim() || loading) return
     setAsked(true)
     setLoading(true)
+    setStreamContent('')
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -45,26 +52,39 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: question }),
       })
-      const data = await res.json()
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as any).error ?? `Request failed (${res.status})`)
+      }
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setStreamContent(accumulated)
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { id: generateId(), role: 'assistant', content: accumulated, timestamp: new Date() },
+      ])
+      setStreamContent('')
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
           id: generateId(),
           role: 'assistant',
-          content: res.ok ? data.answer : data.error ?? 'Something went wrong.',
+          content: err.message || 'Connection error — please try again.',
           timestamp: new Date(),
         },
       ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: generateId(),
-          role: 'assistant',
-          content: 'Connection error — please try again.',
-          timestamp: new Date(),
-        },
-      ])
+      setStreamContent('')
     } finally {
       setLoading(false)
     }
@@ -75,26 +95,20 @@ export default function HomePage() {
       {!asked ? (
         /* ── Hero state ── */
         <div className="w-full max-w-2xl text-center">
-          {/* Logo mark */}
           <div className="inline-flex items-center justify-center w-100 h-25 rounded-[10px] overflow-hidden mb-1">
             <Image src="/Logo.png" alt="MOAA Logo" width={480} height={100} className="object-contain" />
           </div>
 
-      
           <p className="font-light text-muted mb-8 sm:mb-10 text-base sm:text-lg">
             Ask anything about your companies
           </p>
 
-          {/* Main search / chat bar */}
           <div className="relative flex items-end gap-2 bg-card border border-border rounded-[10px] p-3 focus-within:border-[#FFA300]/50 transition-colors duration-[1200ms]">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  ask(input)
-                }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input) }
               }}
               placeholder="Ask a question about your companies…"
               rows={2}
@@ -105,15 +119,10 @@ export default function HomePage() {
               disabled={!input.trim() || loading}
               className="shrink-0 w-10 h-10 rounded-lg bg-[#FFA300] hover:bg-[#FFB621] text-[#28282b] flex items-center justify-center transition-all duration-[1200ms] disabled:opacity-40 disabled:cursor-not-allowed active:scale-90 hover:shadow-md hover:shadow-[#FFA300]/30"
             >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Send size={16} />
-              )}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
           </div>
 
-          {/* Quick question chips */}
           <div className="flex flex-wrap justify-center gap-2 mt-4">
             {QUICK_QUESTIONS.map((q) => (
               <button
@@ -126,27 +135,11 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Quick action cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mt-8 sm:mt-12">
             {[
-              {
-                href: '/companies',
-                icon: Building2,
-                label: 'Browse Companies',
-                desc: 'View all records',
-              },
-              {
-                href: '/companies/new',
-                icon: Plus,
-                label: 'Add Company',
-                desc: 'Create a new record',
-              },
-              {
-                href: '/compare',
-                icon: GitCompare,
-                label: 'Compare',
-                desc: 'Side-by-side view',
-              },
+              { href: '/companies', icon: Building2, label: 'Browse Companies', desc: 'View all records' },
+              { href: '/companies/new', icon: Plus, label: 'Add Company', desc: 'Create a new record' },
+              { href: '/compare', icon: GitCompare, label: 'Compare', desc: 'Side-by-side view' },
             ].map((item, i, arr) => {
               const Icon = item.icon
               const isLastOdd = i === arr.length - 1 && arr.length % 2 !== 0
@@ -161,18 +154,12 @@ export default function HomePage() {
                   </div>
                 </div>
               )
-
               const colClass = isLastOdd ? 'group col-span-2 sm:col-span-1 flex justify-center' : 'group'
               const innerWrapped = isLastOdd ? <div className="w-1/2 sm:w-full">{inner}</div> : inner
-
-              return item.href ? (
+              return (
                 <Link key={item.label} href={item.href} className={colClass}>
                   {innerWrapped}
                 </Link>
-              ) : (
-                <button key={item.label} className={colClass}>
-                  {innerWrapped}
-                </button>
               )
             })}
           </div>
@@ -190,44 +177,42 @@ export default function HomePage() {
               variant="ghost"
               size="sm"
               className="ml-auto"
-              onClick={() => {
-                setAsked(false)
-                setMessages([])
-              }}
+              onClick={() => { setAsked(false); setMessages([]); setStreamContent('') }}
             >
               New question
             </Button>
           </div>
 
-          {/* Messages */}
+          {/* Completed messages */}
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={msg.role === 'user' ? 'text-right' : ''}
-            >
+            <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
               {msg.role === 'user' ? (
                 <span className="inline-block bg-[#FFA300]/10 text-light rounded-[10px] px-4 py-2 text-sm font-light max-w-prose">
                   {msg.content}
                 </span>
               ) : (
-                <div className="bg-card border border-border rounded-[10px] px-5 py-4 text-sm text-light">
-                  <ReactMarkdown
-                    className="prose prose-invert prose-sm max-w-none
-                      prose-p:leading-relaxed prose-strong:text-[#FFA300] prose-strong:font-medium
-                      prose-code:text-[#FECD42] prose-code:bg-[#28282b] prose-code:px-1 prose-code:rounded
-                      prose-ul:my-2 prose-li:my-0.5"
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                <div className="bg-card border border-border rounded-[10px] px-5 py-4">
+                  <MarkdownContent>{msg.content}</MarkdownContent>
                 </div>
               )}
             </div>
           ))}
 
+          {/* In-progress streaming bubble */}
           {loading && (
-            <div className="flex items-center gap-2 text-muted text-sm font-light">
-              <Loader2 size={14} className="animate-spin" />
-              Thinking…
+            <div className="bg-card border border-border rounded-[10px] px-5 py-4 relative">
+              {streamContent ? (
+                <>
+                  <MarkdownContent>{streamContent}</MarkdownContent>
+                  {/* live indicator */}
+                  <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-[#FFA300] animate-pulse" />
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-muted text-sm py-0.5">
+                  <Loader2 size={13} className="animate-spin shrink-0" />
+                  <span>{statusMessage}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -238,10 +223,7 @@ export default function HomePage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    ask(input)
-                  }
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input) }
                 }}
                 placeholder="Ask a follow-up…"
                 rows={1}
