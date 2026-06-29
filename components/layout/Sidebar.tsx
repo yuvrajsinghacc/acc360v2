@@ -10,6 +10,7 @@ import {
 import { UserButton, useUser } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
 import { useApp } from '@/contexts/AppContext'
+import { useAdmin } from '@/lib/hooks/useAdmin'
 
 // useSearchParams requires a Suspense boundary in Next.js 14.
 // Pulled into its own component so the outer Sidebar can suspend just this slice.
@@ -17,6 +18,7 @@ function NavItems({ sidebarOpen }: { sidebarOpen: boolean }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const isHotList = pathname === '/companies' && searchParams.get('hotlist') === '1'
+  const { isAdmin } = useAdmin()
 
   const items = [
     {
@@ -72,20 +74,22 @@ function NavItems({ sidebarOpen }: { sidebarOpen: boolean }) {
         </Link>
       ))}
 
-      {/* Add Company — separate so it doesn't get an active state from /companies/* */}
-      <Link
-        href="/companies/new"
-        className={cn(
-          'flex items-center gap-3 px-2 py-2 rounded-lg text-sm transition-colors duration-[2000ms]',
-          pathname === '/companies/new'
-            ? 'bg-[#A7BDB1] text-[#28282b] border-l-2 border-[#FFA300]'
-            : 'text-[#A7BDB1] hover:text-light hover:bg-[#55565c]',
-        )}
-        title={!sidebarOpen ? 'Add Company' : undefined}
-      >
-        <Plus size={18} className="shrink-0" />
-        {sidebarOpen && <span className="font-medium">Add Company</span>}
-      </Link>
+      {/* Add Company — admin only */}
+      {isAdmin && (
+        <Link
+          href="/companies/new"
+          className={cn(
+            'flex items-center gap-3 px-2 py-2 rounded-lg text-sm transition-colors duration-[2000ms]',
+            pathname === '/companies/new'
+              ? 'bg-[#A7BDB1] text-[#28282b] border-l-2 border-[#FFA300]'
+              : 'text-[#A7BDB1] hover:text-light hover:bg-[#55565c]',
+          )}
+          title={!sidebarOpen ? 'Add Company' : undefined}
+        >
+          <Plus size={18} className="shrink-0" />
+          {sidebarOpen && <span className="font-medium">Add Company</span>}
+        </Link>
+      )}
     </nav>
   )
 }

@@ -10,6 +10,7 @@ import { CompanyCard } from '@/components/companies/CompanyCard'
 import { Button } from '@/components/ui/Button'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { useApp } from '@/contexts/AppContext'
+import { useAdmin } from '@/lib/hooks/useAdmin'
 
 type Filters = {
   vertical: string
@@ -34,6 +35,7 @@ function unique(companies: Company[], field: string): string[] {
 function CompaniesContent() {
   const searchParams = useSearchParams()
   const { compareIds, clearCompare } = useApp()
+  const { isAdmin } = useAdmin()
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
@@ -124,11 +126,13 @@ function CompaniesContent() {
             {companies.length} record{companies.length !== 1 ? 's' : ''} in your database
           </p>
         </div>
-        <div className="sm:ml-auto">
-          <Link href="/companies/new">
-            <Button icon={<Plus size={15} />}>Add Company</Button>
-          </Link>
-        </div>
+        {isAdmin && (
+          <div className="sm:ml-auto">
+            <Link href="/companies/new">
+              <Button icon={<Plus size={15} />}>Add Company</Button>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Compare banner */}
@@ -229,9 +233,11 @@ function CompaniesContent() {
           ) : (
             <div className="space-y-3">
               <p className="text-sm font-light">No companies yet.</p>
-              <Link href="/companies/new">
-                <Button icon={<Plus size={15} />}>Add your first company</Button>
-              </Link>
+              {isAdmin && (
+                <Link href="/companies/new">
+                  <Button icon={<Plus size={15} />}>Add your first company</Button>
+                </Link>
+              )}
             </div>
           )}
         </div>

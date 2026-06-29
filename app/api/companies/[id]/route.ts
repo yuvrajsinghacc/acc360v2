@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getCompany, updateCompany, deleteCompany } from '@/lib/airtable'
+import { requireAdmin } from '@/lib/adminGuard'
 
 interface Params { params: { id: string } }
 
@@ -18,8 +19,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const guard = await requireAdmin()
+  if (guard) return guard
 
   try {
     const fields = await req.json()
@@ -32,8 +33,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const guard = await requireAdmin()
+  if (guard) return guard
 
   try {
     await deleteCompany(params.id)

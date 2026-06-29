@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { MarkdownContent } from '@/components/ui/MarkdownContent'
 import { generateId } from '@/lib/utils'
 import { useStatusMessages } from '@/lib/hooks/useStatusMessages'
+import { useAdmin } from '@/lib/hooks/useAdmin'
 import { ChatMessage } from '@/types'
 
 const QUICK_QUESTIONS = [
@@ -21,6 +22,7 @@ const QUICK_QUESTIONS = [
 
 export default function HomePage() {
   const router = useRouter()
+  const { isAdmin } = useAdmin()
 
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -101,7 +103,7 @@ export default function HomePage() {
           </div>
 
           <p className="font-light text-muted mb-8 sm:mb-10 text-base sm:text-lg">
-            Ask anything about your companies
+            Welcome to Acceleration&apos;s Intelligence Hub
           </p>
 
           <div className="relative flex items-end gap-2 bg-card border border-border rounded-[10px] p-3 focus-within:border-[#FFA300]/50 transition-colors duration-[1200ms]">
@@ -111,7 +113,7 @@ export default function HomePage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input) }
               }}
-              placeholder="Ask a question about your companies…"
+              placeholder="Ask MOAA a question..."
               rows={2}
               className="flex-1 bg-transparent text-light placeholder-muted text-base font-light focus:outline-none resize-none leading-relaxed min-h-[56px]"
             />
@@ -139,7 +141,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mt-8 sm:mt-12">
             {[
               { href: '/companies', icon: Building2, label: 'Browse Companies', desc: 'View all records' },
-              { href: '/companies/new', icon: Plus, label: 'Add Company', desc: 'Create a new record' },
+              ...(isAdmin ? [{ href: '/companies/new', icon: Plus, label: 'Add Company', desc: 'Create a new record' }] : []),
               { href: '/compare', icon: GitCompare, label: 'Compare', desc: 'Side-by-side view' },
             ].map((item, i, arr) => {
               const Icon = item.icon

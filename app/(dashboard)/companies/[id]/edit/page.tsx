@@ -1,16 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Company } from '@/types'
 import { getCompanyName } from '@/lib/utils'
 import { CompanyForm } from '@/components/companies/CompanyForm'
 import { Button } from '@/components/ui/Button'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
+import { useAdmin } from '@/lib/hooks/useAdmin'
 
 export default function EditCompanyPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const { isAdmin, isLoaded: adminLoaded } = useAdmin()
+
+  useEffect(() => {
+    if (adminLoaded && !isAdmin) router.replace('/companies')
+  }, [adminLoaded, isAdmin, router])
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,6 +32,8 @@ export default function EditCompanyPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [id])
+
+  if (!adminLoaded || (adminLoaded && !isAdmin)) return <PageLoader message="Loading…" />
 
   if (loading) return <PageLoader message="Loading company…" />
 

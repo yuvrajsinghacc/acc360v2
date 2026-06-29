@@ -1,6 +1,13 @@
+import { currentUser } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
 import { CompanyForm } from '@/components/companies/CompanyForm'
 
-export default function NewCompanyPage() {
+export default async function NewCompanyPage() {
+  const user = await currentUser()
+  if (!user || user.publicMetadata?.role !== 'admin') {
+    redirect('/companies')
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-8">
       <div>

@@ -11,10 +11,12 @@ import { PageLoader } from '@/components/ui/LoadingSpinner'
 import { DeleteModal } from '@/components/companies/DeleteModal'
 import { Newsroom } from '@/components/companies/Newsroom'
 import { useApp } from '@/contexts/AppContext'
+import { useAdmin } from '@/lib/hooks/useAdmin'
 
 export default function CompanyProfilePage() {
   const { id } = useParams<{ id: string }>()
   const { toggleCompare, isSelectedForCompare, compareIds } = useApp()
+  const { isAdmin } = useAdmin()
 
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
@@ -113,12 +115,16 @@ export default function CompanyProfilePage() {
                 <GitCompare size={13} />
                 {selected ? 'In Compare' : 'Compare'}
               </button>
-              <Link href={`/companies/${company.id}/edit`} className="flex-1 sm:flex-none">
-                <Button size="sm" variant="secondary" icon={<Edit2 size={13} />} className="w-full sm:w-auto justify-center">Edit</Button>
-              </Link>
-              <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => setShowDelete(true)} className="flex-1 sm:flex-none justify-center">
-                Delete
-              </Button>
+              {isAdmin && (
+                <>
+                  <Link href={`/companies/${company.id}/edit`} className="flex-1 sm:flex-none">
+                    <Button size="sm" variant="secondary" icon={<Edit2 size={13} />} className="w-full sm:w-auto justify-center">Edit</Button>
+                  </Link>
+                  <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => setShowDelete(true)} className="flex-1 sm:flex-none justify-center">
+                    Delete
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
