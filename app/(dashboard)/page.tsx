@@ -12,9 +12,9 @@ import { useStatusMessages } from '@/lib/hooks/useStatusMessages'
 import { ChatMessage } from '@/types'
 
 const QUICK_QUESTIONS = [
-  'Which companies are in the tech sector?',
+  'Build me a chart comparing all Hot List companies by revenue',
   'What is the highest revenue company?',
-  'List companies added this year',
+  'What is a company we should consider acquiring?',
   'Compare top 3 by funding round',
 ]
 

@@ -138,8 +138,8 @@ export function ChatPanel() {
             <Bot size={16} className="text-[#FFA300]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-light">ACC AI Assistant</p>
-            <p className="text-xs font-light text-muted truncate">Ask anything about your companies</p>
+            <p className="text-sm font-medium text-light">MOAA</p>
+            <p className="text-xs font-light text-muted truncate">Your trusted AI Assistant.</p>
           </div>
           <button
             onClick={toggleChat}
@@ -158,10 +158,10 @@ export function ChatPanel() {
                 <Bot size={24} className="text-[#FFA300]" />
               </div>
               <div>
-                <p className="text-sm font-medium text-light">Ask about your companies</p>
+                <p className="text-sm font-medium text-light">Hey there, I'm MOAA!</p>
                 <p className="text-xs font-light text-muted mt-1 leading-relaxed">
                   {companiesReady
-                    ? `${allCompanies.length} companies loaded. Try "Which company has the highest revenue?" or "List all companies in the tech sector."`
+                    ? `${allCompanies.length} companies loaded. You can ask me just about anything, For example, try: "Which company has the highest revenue?".`
                     : 'Loading company data…'}
                 </p>
               </div>
@@ -236,7 +236,7 @@ export function ChatPanel() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about your companies… (Enter to send)"
+              placeholder="Type your message..."
               rows={1}
               disabled={loading || !companiesReady}
               className={cn(
@@ -261,7 +261,7 @@ export function ChatPanel() {
             </button>
           </div>
           <p className="text-[10px] font-light text-muted mt-1.5 text-center">
-            Scoped to your Airtable data only · Powered by Claude
+            Powered by Claude & AirTable.
           </p>
         </div>
       </div>
