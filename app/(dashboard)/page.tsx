@@ -93,10 +93,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-4">
+    <>
       {!asked ? (
         /* ── Hero state ── */
-        <div className="w-full max-w-2xl text-center">
+        <div className="flex min-h-[calc(100vh-120px)] flex-col items-center justify-center px-4">
+          <div className="w-full max-w-2xl text-center">
           <div className="flex justify-center mb-4">
             <AccLogo className="w-full max-w-[500px]" />
           </div>
@@ -166,12 +167,13 @@ export default function HomePage() {
             })}
           </div>
         </div>
+        </div>
       ) : (
         /* ── Chat result state ── */
-        <div className="w-full max-w-2xl space-y-6">
-          {/* Compact header */}
-          <div className="flex items-center gap-3">
-            <h1 className="font-serif text-xl font-medium text-light tracking-[0.02em]">MOAA</h1>
+        <div className="flex min-h-[calc(100vh-104px)] w-full flex-col px-0 sm:px-4">
+          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
+          <div className="flex items-center gap-3 py-2 sm:py-3">
+            <h1 className="font-sans text-sm font-medium tracking-normal text-light">MOAA 2.1</h1>
             <Button
               variant="ghost"
               size="sm"
@@ -182,42 +184,46 @@ export default function HomePage() {
             </Button>
           </div>
 
-          {/* Completed messages */}
-          {messages.map((msg) => (
-            <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
-              {msg.role === 'user' ? (
-                <span className="inline-block bg-[#FFA300]/10 text-light rounded-[10px] px-4 py-2 text-sm font-light max-w-prose">
-                  {msg.content}
-                </span>
-              ) : (
-                <div className="bg-card border border-border rounded-[10px] px-5 py-4">
-                  <MarkdownContent>{msg.content}</MarkdownContent>
-                </div>
-              )}
-            </div>
-          ))}
+          <div className="flex-1 space-y-8 py-8 sm:py-10">
+            {/* Completed messages */}
+            {messages.map((msg) => (
+              <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                {msg.role === 'user' ? (
+                  <span className="inline-block max-w-[80%] rounded-[18px] bg-[#FFA300]/10 px-4 py-2.5 text-sm font-light text-light sm:max-w-[70%]">
+                    {msg.content}
+                  </span>
+                ) : (
+                  <div className="max-w-3xl text-light">
+                    <MarkdownContent>{msg.content}</MarkdownContent>
+                  </div>
+                )}
+              </div>
+            ))}
 
-          {/* In-progress streaming bubble */}
-          {loading && (
-            <div className="bg-card border border-border rounded-[10px] px-5 py-4 relative">
-              {streamContent ? (
-                <>
-                  <MarkdownContent>{streamContent}</MarkdownContent>
-                  {/* live indicator */}
-                  <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-[#FFA300] animate-pulse" />
-                </>
-              ) : (
-                <div className="flex items-center gap-2 text-muted text-sm py-0.5">
-                  <Loader2 size={13} className="animate-spin shrink-0" />
-                  <span>{statusMessage}</span>
+            {/* In-progress streaming bubble */}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="relative max-w-3xl text-light">
+                  {streamContent ? (
+                    <>
+                      <MarkdownContent>{streamContent}</MarkdownContent>
+                      {/* live indicator */}
+                      <span className="absolute -right-4 top-2 h-1.5 w-1.5 rounded-full bg-[#FFA300] animate-pulse" />
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-muted text-sm py-0.5">
+                      <Loader2 size={13} className="animate-spin shrink-0" />
+                      <span>{statusMessage}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {/* Follow-up input */}
-          {!loading && (
-            <div className="relative flex items-end gap-2 bg-card border border-border rounded-[10px] p-3">
+          <div className="sticky bottom-0 bg-navy py-3 sm:py-4">
+            <div className="relative flex items-end gap-2 rounded-[18px] border border-border bg-card p-3 shadow-lg shadow-black/10">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -226,19 +232,21 @@ export default function HomePage() {
                 }}
                 placeholder="Ask a follow-up…"
                 rows={1}
-                className="flex-1 bg-transparent text-light placeholder-muted text-sm font-light focus:outline-none resize-none"
+                disabled={loading}
+                className="min-h-[40px] flex-1 resize-none bg-transparent text-sm font-light text-light placeholder-muted focus:outline-none disabled:opacity-50"
               />
               <button
                 onClick={() => ask(input)}
-                disabled={!input.trim()}
+                disabled={!input.trim() || loading}
                 className="shrink-0 w-9 h-9 rounded-lg bg-[#FFA300] hover:bg-[#FFB621] text-[#28282b] flex items-center justify-center transition-all duration-[1200ms] disabled:opacity-40 disabled:cursor-not-allowed active:scale-90 hover:shadow-md hover:shadow-[#FFA300]/30"
               >
-                <Send size={14} />
+                {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               </button>
             </div>
-          )}
+          </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
