@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { AccLogo } from '@/components/ui/AccLogo'
 import { useRouter } from 'next/navigation'
@@ -172,10 +171,7 @@ export default function HomePage() {
         <div className="w-full max-w-2xl space-y-6">
           {/* Compact header */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">
-              <Image src="/acc360-logo.svg" alt="MOAA Logo" width={32} height={32} className="object-contain" />
-            </div>
-            <h1 className="font-serif text-xl font-medium text-light tracking-[0.02em]">ACC Intelligence</h1>
+            <h1 className="font-serif text-xl font-medium text-light tracking-[0.02em]">MOAA</h1>
             <Button
               variant="ghost"
               size="sm"
